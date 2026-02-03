@@ -1,11 +1,13 @@
 const express = require('express');
 const app = express();
 
+app.use(express.static('public'));
+
 app.get('/', (req, res) => {
-  res.send('Chat app coming soon!');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const PORT = process.env.PORT || 8080;
+const server = app.listen(PORT, () => {
+  console.log(`Chat app running on port ${PORT}`);
 });
