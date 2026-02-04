@@ -1,8 +1,7 @@
 // Конфигурация Parse
 Parse.initialize(
-    "gnAJvSu6vtwle6b7URaorh9AcoxInPwIRu67H3Y", // App ID
-    "PHWwE8p5dTupZpzOajRrA7CG8aBcYosU2EUSUEmI",
-    "WeJe3evuDdNNy7tnpYL2jjSR01KLq7U6N5RVFo00"// Client Key
+    "gnAJvSu6vtwIe6b7URaorh9AcoxlnPwIRu67fH3Y", // App ID (твой)
+    "PHWwE8p5dTupZpzOajRrA7CG8aBcYosU2EUSUEmI"  // JavaScript Key
 );
 Parse.serverURL = "https://parseapi.back4app.com/";
 
@@ -65,40 +64,33 @@ async function login() {
     const username = usernameInput.value.trim();
     
     if (!username) {
-        showNotification('Введите имя', 'error');
+        showNotification(' ', 'error');
         return;
     }
     
     try {
         loginBtn.disabled = true;
-        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Вход...';
-        
-        const deviceInfo = collectDeviceInfo();
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
         const result = await Parse.Cloud.run('login', {
             username: username,
-            deviceInfo: deviceInfo
+            deviceInfo: { screen: `${window.screen.width}x${window.screen.height}` }
         });
         
         currentUser = {
             id: result.userId,
             type: result.userType,
-            color: result.color,
-            avatar: result.avatar,
-            displayName: result.displayName,
             username: username
         };
-        
-        currentSession = result;
         
         // Показываем разные интерфейсы
         if (currentUser.type === 'admin') {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'flex';
             });
-            chatSubtitle.innerHTML = '<i class="fas fa-crown"></i> Режим админа';
+            chatSubtitle.innerHTML = '👑';
         } else {
-            chatSubtitle.innerHTML = '<i class="fas fa-heart"></i> Режим Мархабо';
+            chatSubtitle.innerHTML = '💖';
         }
         
         // Переключаем экраны
@@ -107,25 +99,16 @@ async function login() {
         
         // Загружаем сообщения
         loadMessages();
-        setupLiveQuery();
         
-        // Начинаем отправлять информацию об устройстве
-        startDeviceInfoUpdates();
-        
-        // Следим за фокусом
-        startFocusTracking();
-        
-        // Показываем приветствие
-        addSystemMessage(`${currentUser.displayName} вошел(ла) в чат`);
-        
-        showNotification(`Добро пожаловать, ${currentUser.displayName}!`, 'success');
+        // Обновляем статус
+        updateOnlineStatus();
         
     } catch (error) {
-        console.error('Login error:', error);
-        showNotification(error.message || 'Ошибка входа', 'error');
+        // Пустое уведомление при ошибке
+        showNotification(' ', 'error');
     } finally {
         loginBtn.disabled = false;
-        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Войти в чат';
+        loginBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
     }
 }
 
@@ -185,15 +168,13 @@ function addMessageToUI(msg) {
     messageDiv.className = `message ${msg.userType}`;
     messageDiv.id = `msg-${msg.id}`;
     
-    const isCurrentUser = msg.user === currentUser.username;
+    const isCurrentUser = msg.user === (currentUser?.username || '');
     const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
     messageDiv.innerHTML = `
         <div class="message-header">
             <div class="message-sender" style="color: ${msg.color}">
-                ${isCurrentUser ? '<i class="fas fa-user"></i>' : ''}
-                ${msg.displayName}
-                ${msg.userType === 'admin' ? '<i class="fas fa-crown"></i>' : '<i class="fas fa-heart"></i>'}
+                ${msg.userType === 'admin' ? '👑' : '💖'}
             </div>
             <div class="message-time">${time}</div>
         </div>
@@ -581,12 +562,13 @@ function playNotificationSound() {
 // Проверка соединения
 async function checkConnection() {
     try {
-        await Parse.Cloud.run('getMessages', { limit: 1 });
+        // Используем новую функцию ping
+        await Parse.Cloud.run('ping', {});
         connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Сервер доступен';
         connectionStatus.style.color = '#00b894';
         return true;
     } catch (error) {
-        connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Нет соединения с сервером';
+        connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Нет соединения';
         connectionStatus.style.color = '#d63031';
         return false;
     }
