@@ -1,7 +1,8 @@
 // Конфигурация Parse
 Parse.initialize(
     "gnAJvSu6vtwle6b7URaorh9AcoxInPwIRu67H3Y", // App ID
-    "IddYmOKthP9KCMdi63vJIEi527YeELGrBTDtclWYK" // Client Key
+    "PHWwE8p5dTupZpzOajRrA7CG8aBcYosU2EUSUEmI",
+    "WeJe3evuDdNNy7tnpYL2jjSR01KLq7U6N5RVFo00"// Client Key
 );
 Parse.serverURL = "https://parseapi.back4app.com/";
 
