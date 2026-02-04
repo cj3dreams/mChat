@@ -495,10 +495,12 @@ body {
     color: rgba(255, 255, 255, 0.5);
 }
 
+/* Обновляем контейнер кнопок */
 .input-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px; /* Уменьшаем отступ между кнопками */
+    margin-left: 10px;
 }
 
 .send-btn {
@@ -720,4 +722,25 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+.emoji-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-right: 5px; /* Отступ от поля ввода */
+}
+
+.emoji-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
 }
