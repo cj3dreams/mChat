@@ -221,8 +221,8 @@ body {
     height: 100vh;
     background: #0f1419;
     color: white;
-    min-width: 100%; /* ← И ЭТУ */
-    width: 100%;
+    min-width: 50%; /* ← И ЭТУ */
+    width: 90%;
 }
 
 .chat-header {
