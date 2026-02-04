@@ -99,6 +99,8 @@ async function login() {
         
         // Загружаем сообщения
         loadMessages();
+
+         setupLiveQuery();
         
         // Обновляем статус
         updateOnlineStatus();
@@ -118,6 +120,9 @@ async function loadMessages() {
         const messages = await Parse.Cloud.run('getMessages');
         messagesDiv.innerHTML = '';
         
+        // ИСПРАВЛЯЕМ: сортируем по времени (старые сверху, новые снизу)
+        messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
         messages.forEach(msg => {
             addMessageToUI(msg);
         });
@@ -132,7 +137,7 @@ async function loadMessages() {
 function setupLiveQuery() {
     const Message = Parse.Object.extend('Message');
     const query = new Parse.Query(Message);
-    query.descending('timestamp');
+    query.ascending('timestamp');
     query.limit(50);
     
     messagesQuery = query.subscribe();
