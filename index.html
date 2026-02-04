@@ -67,9 +67,6 @@
                     <button id="clearBtn" class="icon-btn admin-only">
                         <i class="fas fa-trash"></i>
                     </button>
-                    <button id="emojiBtn" class="icon-btn">
-                        <i class="far fa-smile"></i>
-                    </button>
                 </div>
             </header>
             
@@ -99,11 +96,14 @@
                 <div class="input-container">
                     <div class="input-wrapper">
                         <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off">
-                        <div class="input-actions">
-                            <button id="sendBtn" class="send-btn">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
+<div class="input-actions">
+    <button id="emojiBtn" class="emoji-btn">  <!-- ← ДОБАВИЛИ СЮДА -->
+        <i class="far fa-smile"></i>
+    </button>
+    <button id="sendBtn" class="send-btn">
+        <i class="fas fa-paper-plane"></i>
+    </button>
+</div>
                     </div>
                     
                     <!-- Панель эмодзи (скрыта) -->
