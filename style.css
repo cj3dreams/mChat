@@ -768,5 +768,7 @@ body {
 @media (min-width: 1200px) {
     .chat-container {
         max-width: 700px;
+               height: 92vh; /* Чуть меньше по высоте */
+        margin-top: 4vh; /* Опускаем от верха */
     }
 }
