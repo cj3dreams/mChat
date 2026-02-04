@@ -78,10 +78,10 @@ async function login() {
         });
 
         // Проверяем если Cloud Code вернул ошибку
-if (result && typeof result.error !== 'undefined') {
-    showNotification('Введите НАСТОЯЩЕЕ имя', 'error');
-    return;
-}
+        if (result && typeof result.error !== 'undefined') {
+            showNotification('Введите НАСТОЯЩЕЕ имя', 'error');
+            return;
+        }
 
         // Проверяем что есть userId (успешный логин)
         if (!result.userId) {
@@ -614,8 +614,6 @@ function playNotificationSound() {
 
 // Проверка соединения
 async function checkConnection() {
-     connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Проверка сервера';
-        connectionStatus.style.color = '#b8ac00ff';
     try {
         // Используем новую функцию ping
         await Parse.Cloud.run('ping', {});
@@ -632,6 +630,8 @@ async function checkConnection() {
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     // Проверка соединения при загрузке
+    connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Проверка сервера';
+    connectionStatus.style.color = '#b8ac00ff';
     checkConnection();
 
     // Автофокус на поле ввода
