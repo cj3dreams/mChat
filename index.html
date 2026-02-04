@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Приватный доступ</title>
+    <title>Система</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -14,29 +14,25 @@
         <div class="login-container">
             <div class="login-header">
                 <div class="logo">
-                    <i class="fas fa-lock"></i>
-                    <span>Приватный доступ</span>
+                    <i class="fas fa-user-secret"></i>
+                    <span>Система</span>
                 </div>
             </div>
             
             <div class="login-form">
                 <div class="input-group">
-                    <input type="text" id="username" placeholder="" autocomplete="off" autofocus>
+                    <input type="text" id="username" placeholder="Введите ваше настоящее имя" autocomplete="off" autofocus>
                 </div>
                 
                 <button id="loginBtn" class="btn-primary">
-                    <i class="fas fa-unlock"></i> Войти
+                    <i class="fas fa-arrow-right"></i>
                 </button>
-                
-                <div class="enter-hint">
-                    <i class="fas fa-keyboard"></i> Enter для входа
-                </div>
             </div>
             
             <div class="login-footer">
                 <div class="connection-status">
                     <i class="fas fa-circle"></i>
-                    <span id="connectionStatus">Проверка...</span>
+                    <span id="connectionStatus">Проверка подключения...</span>
                 </div>
             </div>
         </div>
@@ -54,7 +50,7 @@
                     <div class="chat-info">
                         <div class="chat-title">
                             <i class="fas fa-heart"></i>
-                            <span>Приватный чат</span>
+                            <span>Система</span>
                         </div>
                         <div class="chat-subtitle" id="chatSubtitle">
                             <span id="onlineStatus">•</span>
@@ -63,9 +59,11 @@
                 </div>
                 
                 <div class="header-right">
+                    <!-- Для админа: кнопка информации -->
                     <button id="infoBtn" class="icon-btn admin-only">
-                        <i class="fas fa-eye"></i>
+                        <i class="fas fa-info-circle"></i>
                     </button>
+                    <!-- Для админа: кнопка очистки -->
                     <button id="clearBtn" class="icon-btn admin-only">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -82,10 +80,10 @@
                     <!-- Сообщения загружаются здесь -->
                 </div>
                 
-                <!-- Панель информации админа -->
+                <!-- Панель информации админа (скрыта по умолчанию) -->
                 <div id="adminPanel" class="admin-panel">
                     <div class="panel-header">
-                        <h3><i class="fas fa-info-circle"></i></h3>
+                        <h3><i class="fas fa-eye"></i></h3>
                         <button id="closePanel" class="icon-btn small">
                             <i class="fas fa-times"></i>
                         </button>
@@ -108,7 +106,7 @@
                         </div>
                     </div>
                     
-                    <!-- Панель эмодзи -->
+                    <!-- Панель эмодзи (скрыта) -->
                     <div id="emojiPanel" class="emoji-panel">
                         <div class="emoji-list">
                             😊 ❤️ 👍 😍 💖 👑 ✨ 🎯 💯 🔥
