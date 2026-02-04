@@ -306,6 +306,7 @@ body {
     overflow: hidden;
     display: flex;
     position: relative;
+    width: 100%; /* ← ДОБАВЬ */
 }
 
 .messages {
@@ -316,6 +317,8 @@ body {
     flex-direction: column;
     gap: 16px;
     scroll-behavior: smooth;
+    min-width: 100%; /* ← ДОБАВЬ ЭТУ СТРОКУ */
+    width: 100%;
 }
 
 /* Стили сообщений */
