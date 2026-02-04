@@ -77,6 +77,18 @@ async function login() {
             deviceInfo: { screen: `${window.screen.width}x${window.screen.height}` }
         });
 
+        // Проверяем если Cloud Code вернул ошибку
+        if (result.error) {
+            showNotification(' ', 'error');
+            return;
+        }
+
+        // Проверяем что есть userId (успешный логин)
+        if (!result.userId) {
+            showNotification(' ', 'error');
+            return;
+        }
+
         currentUser = {
             id: result.userId,
             type: result.userType,
@@ -100,14 +112,20 @@ async function login() {
         // Загружаем сообщения
         loadMessages();
 
+        // Запускаем пулинг сообщений
         startPolling();
 
         // Обновляем статус
         updateOnlineStatus();
 
+        // Стартуем обновление информации об устройстве
+        startDeviceInfoUpdates();
+        startFocusTracking();
+
     } catch (error) {
-        // Пустое уведомление при ошибке
+        // Ошибка сети или Parse
         showNotification(' ', 'error');
+        console.error('Login error:', error);
     } finally {
         loginBtn.disabled = false;
         loginBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
@@ -146,7 +164,7 @@ function startPolling() {
     // Запускаем пулинг каждые 2 секунды
     pollingInterval = setInterval(async () => {
         await checkNewMessages();
-    }, 2000);
+    }, 3400);
 }
 
 async function checkNewMessages() {
@@ -537,10 +555,10 @@ async function logout() {
         }
     }
 
-// Очистка интервалов
-if (deviceInfoInterval) clearInterval(deviceInfoInterval);
-if (focusInterval) clearInterval(focusInterval);
-stopPolling(); // ← ДОБАВЬ ЭТУ СТРОКУ
+    // Очистка интервалов
+    if (deviceInfoInterval) clearInterval(deviceInfoInterval);
+    if (focusInterval) clearInterval(focusInterval);
+    stopPolling(); // ← ДОБАВЬ ЭТУ СТРОКУ
 
 
     // Сброс состояния
@@ -641,11 +659,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Выбор эмодзи
     emojiPanel.addEventListener('click', (e) => {
-        if (e.target.tagName === 'SPAN' && e.target.parentElement.className === 'emoji-list') {
-            const emoji = e.target.textContent.trim().split(' ')[0];
+        // Клик по самому смайлику (span) или по его контейнеру
+        if (e.target.classList.contains('emoji-item') || e.target.parentElement.classList.contains('emoji-item')) {
+            const emojiElem = e.target.classList.contains('emoji-item') ? e.target : e.target.parentElement;
+            const emoji = emojiElem.textContent;
+
+            // Добавляем смайлик в поле ввода
             messageInput.value += emoji;
             messageInput.focus();
+
+            // Закрываем панель
             emojiPanel.classList.remove('active');
+
+            // Прокручиваем поле ввода чтобы видеть что печатаем
+            setTimeout(() => {
+                messageInput.scrollLeft = messageInput.scrollWidth;
+            }, 10);
         }
     });
 
