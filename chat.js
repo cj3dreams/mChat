@@ -100,9 +100,9 @@ async function login() {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'flex';
             });
-            chatSubtitle.innerHTML = '3Dreams';
-        } else {
             chatSubtitle.innerHTML = 'M';
+        } else {
+            chatSubtitle.innerHTML = '3Dreams';
         }
 
         // Переключаем экраны
