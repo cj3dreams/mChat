@@ -617,11 +617,11 @@ async function checkConnection() {
     try {
         // Используем новую функцию ping
         await Parse.Cloud.run('ping', {});
-        connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Сервер доступен';
+        connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #00b894"></i> Сервер доступен';
         connectionStatus.style.color = '#00b894';
         return true;
     } catch (error) {
-        connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Нет соединения';
+        connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #d63031"></i> Нет соединения';
         connectionStatus.style.color = '#d63031';
         return false;
     }
@@ -630,7 +630,7 @@ async function checkConnection() {
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     // Проверка соединения при загрузке
-    connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Проверка сервера';
+    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #b8ac00ff"></i> Проверка сервера';
     connectionStatus.style.color = '#b8ac00ff';
     checkConnection();
 
