@@ -7,10 +7,8 @@ Parse.serverURL = "https://parseapi.back4app.com/";
 
 // Глобальные переменные
 let currentUser = null;
-let currentSession = null;
-let messagesQuery = null;
-let deviceInfoInterval = null;
-let focusInterval = null;
+let messagePoolInterval = null;
+let lastMessageId = null;
 
 // DOM элементы
 const loginScreen = document.getElementById('loginScreen');
@@ -34,31 +32,6 @@ const infoModal = document.getElementById('infoModal');
 const secretInfo = document.getElementById('secretInfo');
 const connectionStatus = document.getElementById('connectionStatus');
 
-// Сбор информации об устройстве
-function collectDeviceInfo() {
-    return {
-        screen: `${window.screen.width}x${window.screen.height}`,
-        colorDepth: window.screen.colorDepth,
-        pixelDepth: window.screen.pixelDepth,
-        platform: navigator.platform,
-        language: navigator.language,
-        userAgent: navigator.userAgent,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        cookies: navigator.cookieEnabled,
-        java: navigator.javaEnabled ? navigator.javaEnabled() : false,
-        pdf: navigator.pdfViewerEnabled || false,
-        online: navigator.onLine,
-        battery: navigator.getBattery ? 'Доступно' : 'Не доступно',
-        memory: navigator.deviceMemory || 'Неизвестно',
-        cores: navigator.hardwareConcurrency || 'Неизвестно',
-        focused: document.hasFocus(),
-        visibility: document.visibilityState,
-        url: window.location.href,
-        referrer: document.referrer || 'Прямой заход',
-        timestamp: new Date().toISOString()
-    };
-}
-
 // Вход в систему
 async function login() {
     const username = usernameInput.value.trim();
@@ -77,10 +50,17 @@ async function login() {
             deviceInfo: { screen: `${window.screen.width}x${window.screen.height}` }
         });
         
+        // Проверяем ошибку
+        if (result.error) {
+            showNotification(' ', 'error');
+            return;
+        }
+        
         currentUser = {
             id: result.userId,
             type: result.userType,
-            username: username
+            username: username,
+            color: result.color
         };
         
         // Показываем разные интерфейсы
@@ -99,14 +79,11 @@ async function login() {
         
         // Загружаем сообщения
         loadMessages();
-
-         setupLiveQuery();
         
-        // Обновляем статус
-        updateOnlineStatus();
+        // Запускаем проверку новых сообщений
+        startMessagePooling();
         
     } catch (error) {
-        // Пустое уведомление при ошибке
         showNotification(' ', 'error');
     } finally {
         loginBtn.disabled = false;
@@ -120,11 +97,10 @@ async function loadMessages() {
         const messages = await Parse.Cloud.run('getMessages');
         messagesDiv.innerHTML = '';
         
-        // ИСПРАВЛЯЕМ: сортируем по времени (старые сверху, новые снизу)
-        messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        
         messages.forEach(msg => {
             addMessageToUI(msg);
+            // Запоминаем ID последнего сообщения
+            lastMessageId = msg.id;
         });
         
         scrollToBottom();
@@ -133,47 +109,50 @@ async function loadMessages() {
     }
 }
 
-// Настройка Live Query
-function setupLiveQuery() {
-    const Message = Parse.Object.extend('Message');
-    const query = new Parse.Query(Message);
-    query.ascending('timestamp');
-    query.limit(50);
-    
-    messagesQuery = query.subscribe();
-    
-    messagesQuery.on('create', (message) => {
-        const msgData = {
-            id: message.id,
-            text: message.get('text'),
-            user: message.get('user'),
-            userType: message.get('userType'),
-            color: message.get('color'),
-            displayName: message.get('displayName'),
-            timestamp: message.get('timestamp'),
-            time: message.get('timestamp').toLocaleTimeString()
-        };
+// Проверка новых сообщений (каждые 2 секунды)
+function startMessagePooling() {
+    messagePoolInterval = setInterval(async () => {
+        if (!currentUser) return;
         
-        // Проверяем, чтобы не дублировать свои же сообщения
-        if (!document.getElementById(`msg-${msgData.id}`)) {
-            addMessageToUI(msgData);
-            scrollToBottom();
+        try {
+            const messages = await Parse.Cloud.run('getMessages');
             
-            // Воспроизводим звук для новых сообщений
-            if (msgData.user !== currentUser.username) {
-                playNotificationSound();
+            // Находим новые сообщения
+            const newMessages = messages.filter(msg => 
+                !lastMessageId || msg.id > lastMessageId
+            );
+            
+            // Добавляем новые сообщения
+            newMessages.forEach(msg => {
+                addMessageToUI(msg);
+                lastMessageId = msg.id;
+                
+                // Звук если сообщение не наше
+                if (msg.user !== currentUser.username) {
+                    playNotificationSound();
+                }
+            });
+            
+            // Прокручиваем если есть новые
+            if (newMessages.length > 0) {
+                scrollToBottom();
             }
+            
+        } catch (error) {
+            console.error('Pooling error:', error);
         }
-    });
+    }, 2000); // Проверяем каждые 2 секунды
 }
 
 // Добавление сообщения в UI
 function addMessageToUI(msg) {
+    // Проверяем не добавляли ли уже
+    if (document.getElementById(`msg-${msg.id}`)) return;
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${msg.userType}`;
     messageDiv.id = `msg-${msg.id}`;
     
-    const isCurrentUser = msg.user === (currentUser?.username || '');
     const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
     messageDiv.innerHTML = `
@@ -199,10 +178,15 @@ async function sendMessage() {
         messageInput.disabled = true;
         sendBtn.disabled = true;
         
-        await Parse.Cloud.run('sendMessage', {
+        const result = await Parse.Cloud.run('sendMessage', {
             userId: currentUser.id,
             text: text
         });
+        
+        if (result.error) {
+            showNotification('Ошибка отправки', 'error');
+            return;
+        }
         
         messageInput.value = '';
         messageInput.focus();
@@ -218,7 +202,6 @@ async function sendMessage() {
 
 // Форматирование сообщения (эмодзи, ссылки)
 function formatMessage(text) {
-    // Простая замена смайликов
     const emojiMap = {
         ':)': '😊',
         ':(': '😔',
@@ -240,7 +223,6 @@ function formatMessage(text) {
         formatted = formatted.replace(regex, emojiMap[key]);
     });
     
-    // Обработка реальных эмодзи
     formatted = formatted.replace(/:([a-z_]+):/g, (match, p1) => {
         return emojiMap[`:${p1}:`] || match;
     });
@@ -248,54 +230,9 @@ function formatMessage(text) {
     return formatted.replace(/\n/g, '<br>');
 }
 
-// Добавление системного сообщения
-function addSystemMessage(text) {
-    const systemDiv = document.createElement('div');
-    systemDiv.className = 'message system';
-    systemDiv.innerHTML = `<div class="message-text">${text}</div>`;
-    messagesDiv.appendChild(systemDiv);
-    scrollToBottom();
-}
-
 // Прокрутка вниз
 function scrollToBottom() {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Обновление информации об устройстве
-function startDeviceInfoUpdates() {
-    // Отправляем обновление каждые 30 секунд
-    deviceInfoInterval = setInterval(async () => {
-        if (!currentUser) return;
-        
-        try {
-            await Parse.Cloud.run('updateDeviceInfo', {
-                userId: currentUser.id,
-                deviceInfo: collectDeviceInfo()
-            });
-        } catch (error) {
-            console.error('Error updating device info:', error);
-        }
-    }, 30000);
-}
-
-// Отслеживание фокуса
-function startFocusTracking() {
-    focusInterval = setInterval(async () => {
-        if (!currentUser) return;
-        
-        try {
-            await Parse.Cloud.run('updateDeviceInfo', {
-                userId: currentUser.id,
-                deviceInfo: { focused: document.hasFocus() }
-            });
-            
-            // Обновляем статус онлайн
-            updateOnlineStatus();
-        } catch (error) {
-            console.error('Error updating focus:', error);
-        }
-    }, 10000); // Каждые 10 секунд
 }
 
 // Получение информации о пользователе (для админа)
@@ -305,11 +242,20 @@ async function getUserInfo() {
             userId: currentUser.id
         });
         
+        if (userInfo.error) {
+            showNotification('Ошибка получения информации', 'error');
+            return;
+        }
+        
         if (userInfo.length > 0) {
             displayUserInfo(userInfo[0]);
         } else {
             userInfoDiv.innerHTML = '<div class="info-item"><p>Мархабо еще не вошла в систему</p></div>';
         }
+        
+        // Показываем панель
+        adminPanel.classList.add('active');
+        
     } catch (error) {
         console.error('Error getting user info:', error);
         showNotification('Ошибка получения информации', 'error');
@@ -360,118 +306,7 @@ function displayUserInfo(info) {
             <h4><i class="fas fa-clock"></i> Вход в систему</h4>
             <p>${new Date(info.loginTime).toLocaleString()}</p>
         </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-info-circle"></i> Дополнительно</h4>
-            <p>Платформа: ${info.deviceInfo?.platform || 'Неизвестно'}</p>
-            <p>Язык: ${info.deviceInfo?.language || 'Неизвестно'}</p>
-            <p>Временная зона: ${info.deviceInfo?.timezone || 'Неизвестно'}</p>
-        </div>
     `;
-    
-    // Сохраняем для секретного окна
-    window.secretUserInfo = info;
-}
-
-// Показать секретную информацию
-function showSecretInfo() {
-    if (!window.secretUserInfo) return;
-    
-    const info = window.secretUserInfo;
-    secretInfo.innerHTML = '';
-    
-    // Собираем ВСЮ возможную информацию
-    const allInfo = {
-        '🆔 ID Сессии': info.id,
-        '👤 Имя пользователя': info.username,
-        '🌐 IP Адрес': info.ip || 'Скрыто',
-        '🔗 User Agent': info.userAgent,
-        '💻 Платформа': info.deviceInfo?.platform,
-        '🖥️ Разрешение экрана': info.screenSize,
-        '🎨 Глубина цвета': info.deviceInfo?.colorDepth,
-        '🌍 Язык системы': info.deviceInfo?.language,
-        '🕒 Часовой пояс': info.deviceInfo?.timezone,
-        '📶 Онлайн статус': info.isOnline ? 'В сети' : 'Не в сети',
-        '👀 Фокус окна': info.isFocused ? 'Активно' : 'Не активно',
-        '📊 Глубина пикселей': info.deviceInfo?.pixelDepth,
-        '🍪 Поддержка cookies': info.deviceInfo?.cookies ? 'Да' : 'Нет',
-        '☕ Java': info.deviceInfo?.java ? 'Включена' : 'Выключена',
-        '📄 PDF Viewer': info.deviceInfo?.pdf ? 'Доступен' : 'Не доступен',
-        '🔋 Информация о батарее': info.deviceInfo?.battery,
-        '💾 Память устройства': info.deviceInfo?.memory,
-        '⚙️ Ядра CPU': info.deviceInfo?.cores,
-        '🌐 Сетевое подключение': info.deviceInfo?.online ? 'Онлайн' : 'Офлайн',
-        '📊 Видимость страницы': info.deviceInfo?.visibility,
-        '🔗 URL страницы': info.deviceInfo?.url,
-        '↪️ Источник перехода': info.deviceInfo?.referrer,
-        '⏰ Время входа': new Date(info.loginTime).toLocaleString(),
-        '🕐 Последняя активность': info.lastSeen ? new Date(info.lastSeen).toLocaleString() : 'Неизвестно',
-        '📅 Текущее время на устройстве': info.deviceInfo?.timestamp ? new Date(info.deviceInfo.timestamp).toLocaleString() : 'Неизвестно',
-        '🔍 Детектор устройств': detectDeviceType(info.userAgent),
-        '🌐 Браузер': detectBrowser(info.userAgent),
-        '🖥️ ОС': detectOS(info.userAgent)
-    };
-    
-    Object.keys(allInfo).forEach(key => {
-        if (allInfo[key]) {
-            const item = document.createElement('div');
-            item.className = 'info-item';
-            item.innerHTML = `
-                <h4>${key}</h4>
-                <p>${allInfo[key]}</p>
-            `;
-            secretInfo.appendChild(item);
-        }
-    });
-    
-    infoModal.classList.add('active');
-}
-
-// Детекция устройств
-function detectDeviceType(userAgent) {
-    const ua = userAgent.toLowerCase();
-    if (/mobile|android|iphone|ipod|ipad/.test(ua)) return 'Мобильное устройство';
-    if (/tablet|ipad/.test(ua)) return 'Планшет';
-    return 'Компьютер';
-}
-
-function detectBrowser(userAgent) {
-    const ua = userAgent.toLowerCase();
-    if (/chrome/.test(ua)) return 'Chrome';
-    if (/firefox/.test(ua)) return 'Firefox';
-    if (/safari/.test(ua)) return 'Safari';
-    if (/edge/.test(ua)) return 'Edge';
-    if (/opera|opr/.test(ua)) return 'Opera';
-    return 'Неизвестный браузер';
-}
-
-function detectOS(userAgent) {
-    const ua = userAgent.toLowerCase();
-    if (/windows/.test(ua)) return 'Windows';
-    if (/mac os/.test(ua)) return 'macOS';
-    if (/linux/.test(ua)) return 'Linux';
-    if (/android/.test(ua)) return 'Android';
-    if (/ios|iphone|ipad/.test(ua)) return 'iOS';
-    return 'Неизвестная ОС';
-}
-
-// Обновление статуса онлайн
-async function updateOnlineStatus() {
-    try {
-        const userInfo = await Parse.Cloud.run('getUserInfo', {
-            userId: currentUser.id
-        });
-        
-        if (userInfo.length > 0) {
-            const info = userInfo[0];
-            onlineStatus.innerHTML = info.isOnline ? 
-                '<i class="fas fa-circle"></i> Онлайн' : 
-                '<i class="fas fa-circle"></i> Был(а) ' + (info.lastSeen ? 
-                    new Date(info.lastSeen).toLocaleTimeString() : 'недавно');
-        }
-    } catch (error) {
-        console.error('Error updating online status:', error);
-    }
 }
 
 // Очистка чата
@@ -483,12 +318,24 @@ async function clearChat() {
             userId: currentUser.id
         });
         
+        if (result.error) {
+            showNotification('Только администратор может очищать чат', 'error');
+            return;
+        }
+        
         messagesDiv.innerHTML = '';
-        addSystemMessage(`Чат очищен администратором. Удалено сообщений: ${result.cleared}`);
+        
+        // Системное сообщение
+        const systemDiv = document.createElement('div');
+        systemDiv.className = 'message system';
+        systemDiv.innerHTML = `<div class="message-text">Чат очищен. Удалено сообщений: ${result.cleared}</div>`;
+        messagesDiv.appendChild(systemDiv);
+        
         showNotification(`Очищено ${result.cleared} сообщений`, 'success');
+        
     } catch (error) {
         console.error('Error clearing chat:', error);
-        showNotification('Только администратор может очищать чат', 'error');
+        showNotification('Ошибка очистки', 'error');
     }
 }
 
@@ -504,18 +351,15 @@ async function logout() {
         }
     }
     
-    // Очистка интервалов
-    if (deviceInfoInterval) clearInterval(deviceInfoInterval);
-    if (focusInterval) clearInterval(focusInterval);
-    
-    // Отписка от Live Query
-    if (messagesQuery) {
-        messagesQuery.unsubscribe();
+    // Очистка интервала pooling
+    if (messagePoolInterval) {
+        clearInterval(messagePoolInterval);
+        messagePoolInterval = null;
     }
     
     // Сброс состояния
     currentUser = null;
-    currentSession = null;
+    lastMessageId = null;
     
     // Переключение экранов
     chatScreen.classList.remove('active');
@@ -527,47 +371,14 @@ async function logout() {
     document.querySelectorAll('.admin-only').forEach(el => {
         el.style.display = 'none';
     });
-}
-
-// Уведомления
-function showNotification(message, type = 'info') {
-    // Простая реализация уведомлений
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-        ${message}
-    `;
     
-    document.body.appendChild(notification);
-    
-    // Анимация
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    // Удаление
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, 3000);
-}
-
-// Звук уведомления
-function playNotificationSound() {
-    try {
-        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ');
-        audio.volume = 0.3;
-        audio.play().catch(() => {});
-    } catch (e) {}
+    // Скрываем панель
+    adminPanel.classList.remove('active');
 }
 
 // Проверка соединения
 async function checkConnection() {
     try {
-        // Используем новую функцию ping
         await Parse.Cloud.run('ping', {});
         connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Сервер доступен';
         connectionStatus.style.color = '#00b894';
@@ -579,9 +390,40 @@ async function checkConnection() {
     }
 }
 
+// Звук уведомления
+function playNotificationSound() {
+    try {
+        const audio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ');
+        audio.volume = 0.3;
+        audio.play().catch(() => {});
+    } catch (e) {}
+}
+
+// Уведомления
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+        ${message}
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, 3000);
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
-    // Проверка соединения при загрузке
     checkConnection();
     
     // Автофокус на поле ввода
@@ -621,8 +463,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Для админа
     infoBtn.addEventListener('click', () => {
-        adminPanel.classList.toggle('active');
         if (adminPanel.classList.contains('active')) {
+            adminPanel.classList.remove('active');
+        } else {
             getUserInfo();
         }
     });
@@ -632,107 +475,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     clearBtn.addEventListener('click', clearChat);
-    
-    // Секретная информация (двойной клик на логотип)
-    document.querySelector('.logo').addEventListener('dblclick', () => {
-        if (currentUser?.type === 'admin') {
-            showSecretInfo();
-        }
-    });
-    
-    // Закрытие модального окна
-    document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.addEventListener('click', () => {
-            infoModal.classList.remove('active');
-        });
-    });
-    
-    // Закрытие по клику вне модального окна
-    infoModal.addEventListener('click', (e) => {
-        if (e.target === infoModal) {
-            infoModal.classList.remove('active');
-        }
-    });
-    
-    // Обработка видимости страницы
-    document.addEventListener('visibilitychange', () => {
-        if (currentUser) {
-            Parse.Cloud.run('updateDeviceInfo', {
-                userId: currentUser.id,
-                deviceInfo: { 
-                    focused: document.hasFocus(),
-                    visibility: document.visibilityState
-                }
-            });
-        }
-    });
-    
-    // Обработка закрытия страницы
-    window.addEventListener('beforeunload', () => {
-        if (currentUser) {
-            // Отправляем синхронный запрос о выходе
-            navigator.sendBeacon(
-                'https://parseapi.back4app.com/functions/logout',
-                new Blob([JSON.stringify({
-                    userId: currentUser.id
-                })], { type: 'application/json' })
-            );
-        }
-    });
 });
-
-// Добавляем стили для уведомлений
-const notificationStyles = document.createElement('style');
-notificationStyles.textContent = `
-    .notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 24px;
-        background: rgba(30, 35, 40, 0.95);
-        backdrop-filter: blur(20px);
-        border-radius: 12px;
-        color: white;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        z-index: 10000;
-        transform: translateX(400px);
-        transition: transform 0.3s ease;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    }
-    
-    .notification.show {
-        transform: translateX(0);
-    }
-    
-    .notification.success {
-        border-left: 4px solid #00b894;
-    }
-    
-    .notification.error {
-        border-left: 4px solid #d63031;
-    }
-    
-    .notification.info {
-        border-left: 4px solid #0984e3;
-    }
-    
-    .notification i {
-        font-size: 18px;
-    }
-    
-    .notification.success i {
-        color: #00b894;
-    }
-    
-    .notification.error i {
-        color: #d63031;
-    }
-    
-    .notification.info i {
-        color: #0984e3;
-    }
-`;
-document.head.appendChild(notificationStyles);
