@@ -213,18 +213,6 @@ body {
     color: #00b894;
     animation: blink 1.5s infinite;
 }
-
-/* Стили для экрана чата */
-.chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background: #0f1419;
-    color: white;
-    min-width: 50%; /* ← И ЭТУ */
-    width: 90%;
-}
-
 .chat-header {
     display: flex;
     align-items: center;
