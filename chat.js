@@ -64,7 +64,7 @@ async function login() {
     const username = usernameInput.value.trim();
 
     if (!username) {
-        showNotification(' ', 'error');
+        showNotification('Введите имя', 'error');
         return;
     }
 
@@ -78,14 +78,14 @@ async function login() {
         });
 
         // Проверяем если Cloud Code вернул ошибку
-        if (result.error) {
-            showNotification(' ', 'error');
-            return;
-        }
+if (result && typeof result.error !== 'undefined') {
+    showNotification('Введите НАСТОЯЩЕЕ имя', 'error');
+    return;
+}
 
         // Проверяем что есть userId (успешный логин)
         if (!result.userId) {
-            showNotification(' ', 'error');
+            showNotification('', 'error');
             return;
         }
 
@@ -100,9 +100,9 @@ async function login() {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'flex';
             });
-            chatSubtitle.innerHTML = '👑';
+            chatSubtitle.innerHTML = '3Dreams';
         } else {
-            chatSubtitle.innerHTML = '💖';
+            chatSubtitle.innerHTML = 'M';
         }
 
         // Переключаем экраны
@@ -230,7 +230,7 @@ function addMessageToUI(msg) {
     messageDiv.innerHTML = `
         <div class="message-header">
             <div class="message-sender" style="color: ${msg.color}">
-                ${msg.userType === 'admin' ? '👑' : '💖'}
+                ${msg.userType === 'admin' ? '3Dreams' : 'M'}
             </div>
             <div class="message-time">${time}</div>
         </div>
@@ -614,6 +614,8 @@ function playNotificationSound() {
 
 // Проверка соединения
 async function checkConnection() {
+     connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Проверка сервера';
+        connectionStatus.style.color = '#b8ac00ff';
     try {
         // Используем новую функцию ping
         await Parse.Cloud.run('ping', {});
