@@ -1,14 +1,14 @@
 // Конфигурация Parse
 Parse.initialize(
-    "gnAJvSu6vtwIe6b7URaorh9AcoxlnPwIRu67fH3Y", // App ID (твой)
-    "PHWwE8p5dTupZpzOajRrA7CG8aBcYosU2EUSUEmI"  // JavaScript Key
+    "gnAJvSu6vtwIe6b7URaorh9AcoxlnPwIRu67fH3Y",
+    "PHWwE8p5dTupZpzOajRrA7CG8aBcYosU2EUSUEmI"
 );
 Parse.serverURL = "https://parseapi.back4app.com/";
 
 // Глобальные переменные
 let currentUser = null;
-let messagePoolInterval = null;
-let lastMessageId = null;
+let checkMessagesInterval = null;
+let lastCheckTime = null;
 
 // DOM элементы
 const loginScreen = document.getElementById('loginScreen');
@@ -19,27 +19,17 @@ const backBtn = document.getElementById('backBtn');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const messagesDiv = document.getElementById('messages');
-const emojiBtn = document.getElementById('emojiBtn');
-const emojiPanel = document.getElementById('emojiPanel');
 const infoBtn = document.getElementById('infoBtn');
 const clearBtn = document.getElementById('clearBtn');
 const adminPanel = document.getElementById('adminPanel');
 const closePanel = document.getElementById('closePanel');
 const userInfoDiv = document.getElementById('userInfo');
-const chatSubtitle = document.getElementById('chatSubtitle');
-const onlineStatus = document.getElementById('onlineStatus');
-const infoModal = document.getElementById('infoModal');
-const secretInfo = document.getElementById('secretInfo');
 const connectionStatus = document.getElementById('connectionStatus');
 
 // Вход в систему
 async function login() {
     const username = usernameInput.value.trim();
-    
-    if (!username) {
-        showNotification(' ', 'error');
-        return;
-    }
+    if (!username) return;
     
     try {
         loginBtn.disabled = true;
@@ -52,7 +42,7 @@ async function login() {
         
         // Проверяем ошибку
         if (result.error) {
-            showNotification(' ', 'error');
+            showError();
             return;
         }
         
@@ -63,14 +53,11 @@ async function login() {
             color: result.color
         };
         
-        // Показываем разные интерфейсы
+        // Админские кнопки
         if (currentUser.type === 'admin') {
             document.querySelectorAll('.admin-only').forEach(el => {
                 el.style.display = 'flex';
             });
-            chatSubtitle.innerHTML = '👑';
-        } else {
-            chatSubtitle.innerHTML = '💖';
         }
         
         // Переключаем экраны
@@ -78,13 +65,13 @@ async function login() {
         chatScreen.classList.add('active');
         
         // Загружаем сообщения
-        loadMessages();
+        await loadMessages();
         
         // Запускаем проверку новых сообщений
-        startMessagePooling();
+        startMessageChecking();
         
     } catch (error) {
-        showNotification(' ', 'error');
+        showError();
     } finally {
         loginBtn.disabled = false;
         loginBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
@@ -99,49 +86,62 @@ async function loadMessages() {
         
         messages.forEach(msg => {
             addMessageToUI(msg);
-            // Запоминаем ID последнего сообщения
-            lastMessageId = msg.id;
         });
         
         scrollToBottom();
+        
+        // Запоминаем время последней проверки
+        lastCheckTime = new Date();
+        
     } catch (error) {
         console.error('Error loading messages:', error);
     }
 }
 
-// Проверка новых сообщений (каждые 2 секунды)
-function startMessagePooling() {
-    messagePoolInterval = setInterval(async () => {
+// Проверка новых сообщений
+function startMessageChecking() {
+    // Останавливаем старый интервал если есть
+    if (checkMessagesInterval) {
+        clearInterval(checkMessagesInterval);
+    }
+    
+    // Проверяем каждые 2 секунды
+    checkMessagesInterval = setInterval(async () => {
         if (!currentUser) return;
         
         try {
             const messages = await Parse.Cloud.run('getMessages');
             
-            // Находим новые сообщения
-            const newMessages = messages.filter(msg => 
-                !lastMessageId || msg.id > lastMessageId
-            );
+            // Находим ID всех текущих сообщений
+            const currentMessageIds = new Set();
+            document.querySelectorAll('.message').forEach(msg => {
+                const id = msg.id.replace('msg-', '');
+                currentMessageIds.add(id);
+            });
             
-            // Добавляем новые сообщения
-            newMessages.forEach(msg => {
-                addMessageToUI(msg);
-                lastMessageId = msg.id;
-                
-                // Звук если сообщение не наше
-                if (msg.user !== currentUser.username) {
-                    playNotificationSound();
+            // Добавляем только новые сообщения
+            let hasNewMessages = false;
+            messages.forEach(msg => {
+                if (!currentMessageIds.has(msg.id)) {
+                    addMessageToUI(msg);
+                    hasNewMessages = true;
+                    
+                    // Звук если сообщение не наше
+                    if (msg.user !== currentUser.username) {
+                        playNotificationSound();
+                    }
                 }
             });
             
             // Прокручиваем если есть новые
-            if (newMessages.length > 0) {
+            if (hasNewMessages) {
                 scrollToBottom();
             }
             
         } catch (error) {
-            console.error('Pooling error:', error);
+            console.error('Error checking messages:', error);
         }
-    }, 2000); // Проверяем каждые 2 секунды
+    }, 2000); // Каждые 2 секунды
 }
 
 // Добавление сообщения в UI
@@ -162,7 +162,7 @@ function addMessageToUI(msg) {
             </div>
             <div class="message-time">${time}</div>
         </div>
-        <div class="message-text">${formatMessage(msg.text)}</div>
+        <div class="message-text">${msg.text}</div>
     `;
     
     messagesDiv.appendChild(messageDiv);
@@ -171,11 +171,9 @@ function addMessageToUI(msg) {
 // Отправка сообщения
 async function sendMessage() {
     const text = messageInput.value.trim();
-    
     if (!text || !currentUser) return;
     
     try {
-        messageInput.disabled = true;
         sendBtn.disabled = true;
         
         const result = await Parse.Cloud.run('sendMessage', {
@@ -184,134 +182,77 @@ async function sendMessage() {
         });
         
         if (result.error) {
-            showNotification('Ошибка отправки', 'error');
+            alert('Ошибка отправки');
             return;
         }
         
         messageInput.value = '';
         messageInput.focus();
         
+        // Не перезагружаем все сообщения - pooling сам подхватит
+        
     } catch (error) {
         console.error('Error sending message:', error);
-        showNotification('Ошибка отправки', 'error');
+        alert('Ошибка отправки');
     } finally {
-        messageInput.disabled = false;
         sendBtn.disabled = false;
     }
 }
 
-// Форматирование сообщения (эмодзи, ссылки)
-function formatMessage(text) {
-    const emojiMap = {
-        ':)': '😊',
-        ':(': '😔',
-        ':D': '😃',
-        ';)': '😉',
-        ':P': '😛',
-        '<3': '❤️',
-        '</3': '💔',
-        ':heart:': '❤️',
-        ':fire:': '🔥',
-        ':crown:': '👑',
-        ':star:': '⭐',
-        ':sparkles:': '✨'
-    };
-    
-    let formatted = text;
-    Object.keys(emojiMap).forEach(key => {
-        const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-        formatted = formatted.replace(regex, emojiMap[key]);
-    });
-    
-    formatted = formatted.replace(/:([a-z_]+):/g, (match, p1) => {
-        return emojiMap[`:${p1}:`] || match;
-    });
-    
-    return formatted.replace(/\n/g, '<br>');
-}
-
-// Прокрутка вниз
-function scrollToBottom() {
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-}
-
-// Получение информации о пользователе (для админа)
+// Получение информации о пользователе
 async function getUserInfo() {
+    if (!currentUser || currentUser.type !== 'admin') return;
+    
     try {
         const userInfo = await Parse.Cloud.run('getUserInfo', {
             userId: currentUser.id
         });
         
         if (userInfo.error) {
-            showNotification('Ошибка получения информации', 'error');
+            alert('Нет доступа');
             return;
         }
         
         if (userInfo.length > 0) {
-            displayUserInfo(userInfo[0]);
+            const info = userInfo[0];
+            userInfoDiv.innerHTML = `
+                <div class="info-item">
+                    <h4><i class="fas fa-user"></i> Пользователь</h4>
+                    <p>${info.username}</p>
+                </div>
+                <div class="info-item">
+                    <h4><i class="fas fa-signal"></i> Статус</h4>
+                    <p>${info.isOnline ? 'Онлайн' : 'Офлайн'}</p>
+                </div>
+                <div class="info-item">
+                    <h4><i class="fas fa-desktop"></i> Устройство</h4>
+                    <p>${info.userAgent}</p>
+                </div>
+                <div class="info-item">
+                    <h4><i class="fas fa-expand"></i> Экран</h4>
+                    <p>${info.screenSize}</p>
+                </div>
+                <div class="info-item">
+                    <h4><i class="fas fa-map-marker-alt"></i> IP Адрес</h4>
+                    <p>${info.ip || 'Неизвестно'}</p>
+                </div>
+            `;
+            
+            adminPanel.classList.add('active');
         } else {
-            userInfoDiv.innerHTML = '<div class="info-item"><p>Мархабо еще не вошла в систему</p></div>';
+            userInfoDiv.innerHTML = '<div class="info-item"><p>Мархабо не в сети</p></div>';
+            adminPanel.classList.add('active');
         }
-        
-        // Показываем панель
-        adminPanel.classList.add('active');
         
     } catch (error) {
         console.error('Error getting user info:', error);
-        showNotification('Ошибка получения информации', 'error');
     }
-}
-
-// Отображение информации о пользователе
-function displayUserInfo(info) {
-    const status = info.isOnline ? 
-        '<span class="status-online"><i class="fas fa-circle"></i> Онлайн</span>' : 
-        '<span class="status-offline"><i class="fas fa-circle"></i> Офлайн</span>';
-    
-    const lastSeen = info.lastSeen ? 
-        new Date(info.lastSeen).toLocaleTimeString() : 'Неизвестно';
-    
-    userInfoDiv.innerHTML = `
-        <div class="info-item">
-            <h4><i class="fas fa-user"></i> Пользователь</h4>
-            <p>${info.username}</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-signal"></i> Статус</h4>
-            <p>${status} (Последняя активность: ${lastSeen})</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-desktop"></i> Устройство</h4>
-            <p>${info.userAgent}</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-expand"></i> Экран</h4>
-            <p>${info.screenSize}</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-map-marker-alt"></i> IP Адрес</h4>
-            <p>${info.ip || 'Неизвестно'}</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-eye"></i> Фокус</h4>
-            <p>${info.isFocused ? 'В фокусе' : 'Не в фокусе'}</p>
-        </div>
-        
-        <div class="info-item">
-            <h4><i class="fas fa-clock"></i> Вход в систему</h4>
-            <p>${new Date(info.loginTime).toLocaleString()}</p>
-        </div>
-    `;
 }
 
 // Очистка чата
 async function clearChat() {
-    if (!confirm('Вы уверены что хотите очистить весь чат?')) return;
+    if (!currentUser || currentUser.type !== 'admin') return;
+    if (!confirm('Очистить чат?')) return;
     
     try {
         const result = await Parse.Cloud.run('clearChat', {
@@ -319,10 +260,11 @@ async function clearChat() {
         });
         
         if (result.error) {
-            showNotification('Только администратор может очищать чат', 'error');
+            alert('Нет доступа');
             return;
         }
         
+        // Очищаем сообщения
         messagesDiv.innerHTML = '';
         
         // Системное сообщение
@@ -331,15 +273,12 @@ async function clearChat() {
         systemDiv.innerHTML = `<div class="message-text">Чат очищен. Удалено сообщений: ${result.cleared}</div>`;
         messagesDiv.appendChild(systemDiv);
         
-        showNotification(`Очищено ${result.cleared} сообщений`, 'success');
-        
     } catch (error) {
         console.error('Error clearing chat:', error);
-        showNotification('Ошибка очистки', 'error');
     }
 }
 
-// Выход из системы
+// Выход
 async function logout() {
     if (currentUser) {
         try {
@@ -351,23 +290,23 @@ async function logout() {
         }
     }
     
-    // Очистка интервала pooling
-    if (messagePoolInterval) {
-        clearInterval(messagePoolInterval);
-        messagePoolInterval = null;
+    // Останавливаем проверку сообщений
+    if (checkMessagesInterval) {
+        clearInterval(checkMessagesInterval);
+        checkMessagesInterval = null;
     }
     
-    // Сброс состояния
+    // Сбрасываем состояние
     currentUser = null;
-    lastMessageId = null;
+    lastCheckTime = null;
     
-    // Переключение экранов
+    // Переключаем экраны
     chatScreen.classList.remove('active');
     loginScreen.classList.add('active');
     usernameInput.value = '';
     usernameInput.focus();
     
-    // Скрываем админские элементы
+    // Скрываем админские кнопки
     document.querySelectorAll('.admin-only').forEach(el => {
         el.style.display = 'none';
     });
@@ -376,16 +315,19 @@ async function logout() {
     adminPanel.classList.remove('active');
 }
 
+// Прокрутка вниз
+function scrollToBottom() {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
 // Проверка соединения
 async function checkConnection() {
     try {
         await Parse.Cloud.run('ping', {});
         connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Сервер доступен';
-        connectionStatus.style.color = '#00b894';
         return true;
     } catch (error) {
         connectionStatus.innerHTML = '<i class="fas fa-circle"></i> Нет соединения';
-        connectionStatus.style.color = '#d63031';
         return false;
     }
 }
@@ -399,80 +341,49 @@ function playNotificationSound() {
     } catch (e) {}
 }
 
-// Уведомления
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-        ${message}
+// Простая ошибка
+function showError() {
+    const errorDiv = document.createElement('div');
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #e74c3c;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 10000;
     `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
+    errorDiv.textContent = ' ';
+    document.body.appendChild(errorDiv);
     
     setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, 3000);
+        errorDiv.remove();
+    }, 2000);
 }
 
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     checkConnection();
     
-    // Автофокус на поле ввода
+    // Автофокус
     usernameInput.focus();
     
     // Обработчики событий
     loginBtn.addEventListener('click', login);
-    
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') login();
     });
     
     sendBtn.addEventListener('click', sendMessage);
-    
     messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
+        if (e.key === 'Enter') sendMessage();
     });
     
     backBtn.addEventListener('click', logout);
-    
-    emojiBtn.addEventListener('click', () => {
-        emojiPanel.classList.toggle('active');
-    });
-    
-    // Выбор эмодзи
-    emojiPanel.addEventListener('click', (e) => {
-        if (e.target.tagName === 'SPAN' && e.target.parentElement.className === 'emoji-list') {
-            const emoji = e.target.textContent.trim().split(' ')[0];
-            messageInput.value += emoji;
-            messageInput.focus();
-            emojiPanel.classList.remove('active');
-        }
-    });
-    
-    // Для админа
-    infoBtn.addEventListener('click', () => {
-        if (adminPanel.classList.contains('active')) {
-            adminPanel.classList.remove('active');
-        } else {
-            getUserInfo();
-        }
-    });
-    
+    infoBtn.addEventListener('click', getUserInfo);
+    clearBtn.addEventListener('click', clearChat);
     closePanel.addEventListener('click', () => {
         adminPanel.classList.remove('active');
     });
-    
-    clearBtn.addEventListener('click', clearChat);
 });
