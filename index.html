@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат для двоих | cj3dreams & Мархабо</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Экран входа -->
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo">
+                    <i class="fas fa-heart"></i>
+                    <span>Чат для двоих</span>
+                </div>
+                <p class="subtitle">Только для cj3dreams и Мархабо</p>
+            </div>
+            
+            <div class="login-form">
+                <div class="input-group">
+                    <label for="username">
+                        <i class="fas fa-user"></i> Введите ваше имя
+                    </label>
+                    <input type="text" id="username" placeholder="например: cj3dreams или Мархабо" autocomplete="off">
+                    <div class="hint">
+                        <i class="fas fa-info-circle"></i>
+                        Для Мархабо: мархабо, мархаб, мабош, м, m
+                    </div>
+                </div>
+                
+                <div class="user-examples">
+                    <div class="example admin">
+                        <i class="fas fa-crown"></i>
+                        <span>cj3dreams → Админ 👑</span>
+                    </div>
+                    <div class="example marhabo">
+                        <i class="fas fa-heart"></i>
+                        <span>Мархабо → Розовая 💖</span>
+                    </div>
+                </div>
+                
+                <button id="loginBtn" class="btn-primary">
+                    <i class="fas fa-sign-in-alt"></i> Войти в чат
+                </button>
+            </div>
+            
+            <div class="login-footer">
+                <div class="connection-status">
+                    <i class="fas fa-circle"></i>
+                    <span id="connectionStatus">Проверка подключения...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Экран чата -->
+    <div id="chatScreen" class="screen">
+        <div class="chat-container">
+            <!-- Шапка чата -->
+            <header class="chat-header">
+                <div class="header-left">
+                    <button id="backBtn" class="icon-btn">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <div class="chat-info">
+                        <div class="chat-title">
+                            <i class="fas fa-heart"></i>
+                            <span>Личный чат</span>
+                        </div>
+                        <div class="chat-subtitle" id="chatSubtitle">
+                            <span id="onlineStatus">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="header-right">
+                    <!-- Для админа: кнопка информации -->
+                    <button id="infoBtn" class="icon-btn admin-only">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <!-- Для админа: кнопка очистки -->
+                    <button id="clearBtn" class="icon-btn admin-only">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button id="emojiBtn" class="icon-btn">
+                        <i class="far fa-smile"></i>
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Основная область чата -->
+            <main class="chat-main">
+                <!-- Сообщения -->
+                <div class="messages" id="messages">
+                    <!-- Сообщения загружаются здесь -->
+                </div>
+                
+                <!-- Панель информации админа (скрыта по умолчанию) -->
+                <div id="adminPanel" class="admin-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-eye"></i> Информация о Мархабо</h3>
+                        <button id="closePanel" class="icon-btn small">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content" id="userInfo">
+                        <!-- Информация загружается здесь -->
+                    </div>
+                </div>
+            </main>
+            
+            <!-- Панель ввода -->
+            <footer class="chat-footer">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <input type="text" id="messageInput" placeholder="Напишите сообщение..." autocomplete="off">
+                        <div class="input-actions">
+                            <button id="attachBtn" class="icon-btn small">
+                                <i class="fas fa-paperclip"></i>
+                            </button>
+                            <button id="sendBtn" class="send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Панель эмодзи (скрыта) -->
+                    <div id="emojiPanel" class="emoji-panel">
+                        <div class="emoji-category">
+                            <span>Частые:</span>
+                            <div class="emoji-list">
+                                😊 😂 ❤️ 👍 🔥 🎉 💯 😍 👋 🤔
+                            </div>
+                        </div>
+                        <div class="emoji-category">
+                            <span>Для чата:</span>
+                            <div class="emoji-list">
+                                💖 💕 💞 💓 💗 👑 🎯 ✨ 🌟 💫
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    
+    <!-- Модальное окно информации -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-secret"></i> Секретная информация</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="info-grid" id="secretInfo">
+                    <!-- Секретная информация загружается здесь -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/parse/3.5.0/parse.min.js"></script>
+    <script src="chat.js"></script>
+</body>
+</html>
