@@ -537,14 +537,11 @@ async function logout() {
         }
     }
 
-    // Очистка интервалов
-    if (deviceInfoInterval) clearInterval(deviceInfoInterval);
-    if (focusInterval) clearInterval(focusInterval);
+// Очистка интервалов
+if (deviceInfoInterval) clearInterval(deviceInfoInterval);
+if (focusInterval) clearInterval(focusInterval);
+stopPolling(); // ← ДОБАВЬ ЭТУ СТРОКУ
 
-    // Отписка от Live Query
-    if (messagesQuery) {
-        messagesQuery.unsubscribe();
-    }
 
     // Сброс состояния
     currentUser = null;
